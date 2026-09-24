@@ -1,0 +1,24 @@
+description = "SocketDev fleet repos (socket-mcp, socket-cli): the host tools the fleet expects beside node/pnpm"
+
+# The project's minimal.toml brings node, pnpm 12, git and the build/test
+# deps. This adds the fleet's "system" tools from .config/repo/external-tools.json
+# that a contributor uses by hand:
+#   zizmor   GitHub Actions linter that CI blocks merges on. Upstream 1.30.1
+#            matches the fleet pin in external-tools.generated.json.
+#   gh       weekly-update:ci, release and PR scripts.
+#   jq, ripgrep   reading the fleet's JSON manifests and 5000-line .gitignore.
+packages = ["zizmor", "gh", "jq", "ripgrep", "less"]
+
+[vars]
+# The fleet's AGENTS.md rules out npx, dlx and corepack; keep corepack from
+# fetching whatever a package.json names.
+COREPACK_ENABLE_PROJECT_SPEC = "0"
+
+# One-time session setup for a fleet repo: hydrate scripts/fleet/** from
+# ghcr.io, install, and provide the wheelhouse pnpm launcher that the fleet
+# git hooks require. The project cannot declare this itself, because a
+# project's session hooks also run in every task sandbox. The guard makes it
+# a no-op in any session or task sandbox that has no fleet repo at /workbench.
+[[lifecycle_hooks]]
+description = "socket fleet: hydrate tooling and install"
+on_activate = { type = "inline", value = "[ -f /workbench/.minimal/session-setup.sh ] || exit 0; sh /workbench/.minimal/session-setup.sh", timeout = 300 }

@@ -1,0 +1,15 @@
+description = "socket-cli: sdxgen access for the build, plus a Socket API token and org for running the CLI"
+
+# SDXGEN_GITHUB_TOKEN lets `pnpm run build` clone the private SocketDev/sdxgen
+# into upstream/sdxgen (scripts/repo/cli-build/sdxgen.mts), sent as an http
+# extraheader. You don't need it when git in the box already has github.com
+# credentials, for example through a credential-broker loadout. Every var
+# here is dropped with a warning when the host has not set it.
+#
+# SOCKET_CLI_API_TOKEN and SOCKET_CLI_ORG_SLUG are for `pnpm run s ...`
+# against the real API, and for the e2e lane (RUN_E2E_TESTS=1). The unit and
+# integration suites scrub them and mock the API.
+[vars]
+SDXGEN_GITHUB_TOKEN = { inherit = true }
+SOCKET_CLI_API_TOKEN = { inherit = true }
+SOCKET_CLI_ORG_SLUG = { inherit = true }

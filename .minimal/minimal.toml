@@ -1,0 +1,81 @@
+# Minimal config for socket-cli. https://minimal.dev/docs/reference/minimal-dot-toml
+#
+#   min session activate            dev session; the tree is at /workbench.
+#                                   Then run: sh .minimal/session-setup.sh
+#                                   (the socket-fleet loadout runs it for you)
+#   min task run build              build/cli.js + dist/ (needs sdxgen access, below)
+#   min task run test               build:cli, then the unit suite
+#   min task run test-integration   dist/index.js against test/integration
+#   min task run check              fleet checks + lint + types
+#   sh .minimal/loadouts/install.sh  install the developer loadouts (on the host)
+#   min task run socket --args "scan --help"      run the built CLI
+#
+# The build clones SocketDev/sdxgen, which is private, into upstream/sdxgen.
+# That needs either SDXGEN_GITHUB_TOKEN or git credentials for github.com
+# inside the box (e.g. a credential-broker loadout). Without one, build and
+# test fail at the sdxgen step.
+#
+# There is no [stack]: the upstream pnpm stack pulls pnpm 11, and the fleet
+# needs pnpm 12 (see .minimal/packages/pnpm12). Two packages would both
+# provide /usr/bin/pnpm.
+
+[upstream]
+repo = "https://github.com/gominimal/pkgs"
+branch = "main"
+locked_commit = "d5e98b3f7e48e494a36e2591d31fa6c58487d2f6"
+
+[defaults]
+state_key = "dev"
+
+[session]
+# node-lts is 24.x: it satisfies engines (>=24), though .node-version (26.8.1)
+# is newer than anything upstream ships. pnpm12 runs on it.
+# binutils: `strings`, used by the fleet git hooks' file scan.
+# openssl: spawned by test/unit/core/firewall/certificates-strict.test.mts.
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12", "binutils", "openssl"]
+
+[session.vars]
+# The fleet's no-phone-home set (.github/actions/fleet/setup/fleet-env.json).
+# The telemetry-env-is-disabled check requires it.
+COREPACK_ENABLE_PROJECT_SPEC = "0"
+DO_NOT_TRACK = "1"
+DISABLE_TELEMETRY = "1"
+NO_UPDATE_NOTIFIER = "1"
+OTEL_SDK_DISABLED = "true"
+SFW_TELEMETRY_DISABLED = "true"
+
+[tasks.install]
+description = "Hydrate fleet tooling and install (warms the /state pnpm store)"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12"]
+bash = ". .minimal/task-env.sh"
+
+[tasks.build]
+description = "Full build: build/cli.js, dist/, dist/sdxgen"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12"]
+bash = ". .minimal/task-env.sh && pnpm run build"
+
+[tasks.test]
+description = "build:cli, then the unit suite (nock-mocked; no Socket token needed)"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12", "binutils", "openssl"]
+bash = ". .minimal/task-env.sh && pnpm test --all"
+
+[tasks.test-integration]
+description = "dist/index.js against test/integration (--help / --dry-run, fake tokens)"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12", "openssl"]
+bash = ". .minimal/task-env.sh && pnpm run build && pnpm run test:integration"
+
+[tasks.check]
+description = "Fleet checks, lint and typecheck over the whole tree"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12", "binutils"]
+bash = ". .minimal/task-env.sh && pnpm run check --all"
+
+[tasks.build-sea]
+description = "Single-executable build for this host's platform (downloads node-smol from GitHub releases)"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12"]
+bash = ". .minimal/task-env.sh && pnpm run build && pnpm run build:sea --target=host && pnpm run test:sea"
+
+[tasks.socket]
+description = "Build, then run the CLI: min task run socket --args 'scan --help'"
+packages = ["base", "bash", "git", "ca-certificates", "node-lts", "pnpm12"]
+args.args = { type = "string", help = "arguments passed to socket", default = "--help" }
+bash = ". .minimal/task-env.sh && pnpm run build >/tmp/build.log 2>&1 || { cat /tmp/build.log; exit 1; }; pnpm run s %{args}"
